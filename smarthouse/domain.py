@@ -24,30 +24,21 @@ class Sensor(Device):
     pass
 
 class Actuator(Device):
-    def init(self, device_id, supplier, model_name, target_value=None):
-        super().init(device_id, supplier, model_name)
-        self.target_value = target_value
+    def __init__(self, id, device_type, supplier, model_name):
+        super().__init__(id, device_type, supplier, model_name)
         self.active = False
+        self.extra_info = None
 
-    def turn_on(self, target_value=None):
+    def turn_on(self, extra_info=None):
         self.active = True
-        if target_value is not None:
-            self.target_value = target_value
+        self.extra_info = extra_info
 
     def turn_off(self):
         self.active = False
+        self.extra_info = None
 
     def is_active(self):
         return self.active
-
-    def get_device_type(self):
-        return "Generic Actuator"  # Endre dette til en mer spesifikk enhetstype etter behov
-
-    def is_sensor(self):
-        return False
-
-    def is_actuator(self):
-        return True
 
 class SmartHouse:
     def __init__(self):
@@ -87,15 +78,16 @@ class SmartHouse:
                     supplier = row['Produsent']
                     model_name = row['Modellnavn']
                     room_name = row['Room']
+                    device_category = row['DeviceCategory']
 
                     room = next((r for r in self.rooms if r.room_name == room_name), None)
                     if not room:
                         print(f"Room '{room_name}' not found for device '{device_id}'. Skipping...")
                         continue
 
-                    if 'Sensor' in device_type:
+                    if 'Sensor' in device_category:
                         device = Sensor(device_id, device_type, supplier, model_name)
-                    elif 'Actuator' in device_type:
+                    elif 'Actuator' in device_category:
                         device = Actuator(device_id, device_type, supplier, model_name)
                     else:
                         device = Device(device_id, device_type, supplier, model_name)
