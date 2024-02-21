@@ -1,22 +1,25 @@
-from smarthouse.domain import SmartHouse, Sensor, Actuator
-import csv
+# In demo_house.py
+
+from smarthouse.domain import SmartHouse
 
 # Initialiser SmartHouse
 DEMO_HOUSE = SmartHouse()
 
-# Registrer etasjer og rom
-DEMO_HOUSE.register_floor(1)
-DEMO_HOUSE.register_room(1, 13.5, "Entrance")
-DEMO_HOUSE.register_room(1, 39.75, "Living room / Kitchen")
-DEMO_HOUSE.register_room(1, 6.3, "Bathroom 1")
-DEMO_HOUSE.register_room(1, 8, "Guest room 1")
-DEMO_HOUSE.register_room(1, 19, "Garage")
+## Registrer rom
+DEMO_HOUSE.register_room("Entrance", 13.5)
+DEMO_HOUSE.register_room("Living room / Kitchen", 39.75)
+DEMO_HOUSE.register_room("Bathroom 1", 6.3)
+DEMO_HOUSE.register_room("Guest room 1", 8)
+DEMO_HOUSE.register_room("Garage", 19)
 
-DEMO_HOUSE.register_floor(2)
-DEMO_HOUSE.register_room(2, 11.75, "Office")
-DEMO_HOUSE.register_room(2, 9.25, "Bathroom 2")
-DEMO_HOUSE.register_room(2, 10, "Hallway")
-DEMO_HOUSE.register_room(2, 8, "Guest Room 2")
-DEMO_HOUSE.register_room(2, 10, "Guest Room 3")
-DEMO_HOUSE.register_room(2, 4, "Dressing Room")
-DEMO_HOUSE.register_room(2, 17, "Master Bedroom")
+DEMO_HOUSE.register_room("Office", 11.75)
+DEMO_HOUSE.register_room("Bathroom 2", 9.25)
+DEMO_HOUSE.register_room("Hallway", 10)
+DEMO_HOUSE.register_room("Guest Room 2", 8)
+DEMO_HOUSE.register_room("Guest Room 3", 10)
+DEMO_HOUSE.register_room("Dressing Room", 4)
+DEMO_HOUSE.register_room("Master Bedroom", 17)
+
+
+# Last inn enheter fra CSV
+DEMO_HOUSE.load_devices_from_csv('C:\\Python\\ing301gruppeA2\\tests\\Bookofmormons.csv')

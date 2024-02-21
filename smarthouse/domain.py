@@ -1,34 +1,31 @@
 import csv
-import random
-from datetime import datetime
 
-csv_file_path = '/Users/kingston/Desktop/ING301/ing301public/ing301gruppeA2/tests/Bookofmormons (1).csv'
-
-class Measurement:
-    def __init__(self, timestamp, value, unit):
-        self.timestamp = timestamp
-        self.value = value
-        self.unit = unit
+class Room:
+    def __init__(self, room_name, area):
+        self.room_name = room_name
+        self.area = area
+        self.devices = []
 
 class Device:
-    def __init__(self, device_id, supplier, model_name):
-        self.device_id = device_id
+    def __init__(self, id, device_type, supplier, model_name):
+        self.id = id
+        self.device_type = device_type
         self.supplier = supplier
         self.model_name = model_name
+        self.room = None
 
     def is_sensor(self):
-        return isinstance(self, Sensor)
+        return "sensor" in self.device_type.lower()
 
     def is_actuator(self):
-        return isinstance(self, Actuator)
+        return hasattr(self, 'active')
 
 class Sensor(Device):
-    def last_measurement(self):
-        return Measurement(datetime.now().isoformat(), random.uniform(20.0, 30.0), "°C")
+    pass
 
 class Actuator(Device):
-    def __init__(self, device_id, supplier, model_name, target_value=None):
-        super().__init__(device_id, supplier, model_name)
+    def init(self, device_id, supplier, model_name, target_value=None):
+        super().init(device_id, supplier, model_name)
         self.target_value = target_value
         self.active = False
 
@@ -43,158 +40,69 @@ class Actuator(Device):
     def is_active(self):
         return self.active
 
-class Room:
-    def __init__(self, room_size, room_name=None):
-        self.room_size = room_size
-        self.room_name = room_name
-        self.devices = []
+    def get_device_type(self):
+        return "Generic Actuator"  # Endre dette til en mer spesifikk enhetstype etter behov
 
-    def add_device(self, device):
-        self.devices.append(device)
-        device.room = self
+    def is_sensor(self):
+        return False
 
-    def get_device(self, device_id):
-        for device in self.devices:
-            if device.device_id == device_id:
-                return device
-        return None
+    def is_actuator(self):
+        return True
 
-class Floor:
-    def __init__(self, level):
-        self.level = level
+class SmartHouse:
+    def __init__(self):
         self.rooms = []
 
-    def add_room(self, room):
-        self.rooms.append(room)
+    def register_room(self, room_name, area):
+        self.rooms.append(Room(room_name, area))
+
     def get_rooms(self):
         return self.rooms
 
-class SmartHouse:
-    def __init__(self):
-        self.floors = {}
-
-    def register_floor(self, level):
-        floor = Floor(level)
-        self.floors[level] = floor
-        return floor
-
-    def register_room(self, floor_level, room_size, room_name=None):
-        if floor_level not in self.floors:
-            raise ValueError(f"Floor {floor_level} not registered.")
-        room = Room(room_size, room_name)
-        self.floors[floor_level].add_room(room)
-        return room
-
-    def get_rooms(self):
-        rooms = []
-        for floor in self.floors.values():
-            rooms.extend(floor.get_rooms())
-        return rooms
-
     def get_area(self):
-        return sum(room.room_size for room in self.get_rooms())
-
-    def get_device(self, device_id):
-        for room in self.get_rooms():
-            device = room.get_device(device_id)
-            if device:
-                return device
+        return sum(room.area for room in self.rooms)
 
     def get_devices(self):
-        devices = []
-        for room in self.get_rooms():
-            devices.extend(room.devices)
-        return devices
-    
-    def get_device_by_id(self, device_id):
-        for device in self.get_devices():
-            if device.device_id == device_id:
-                return device
-        return None  # If the device isn't found, return None   
+        return [device for room in self.rooms for device in room.devices]
 
-class SmartHouse:
-    def __init__(self):
-        self.floors = {}
+    def get_device_by_id(self, id):
+        for room in self.rooms:
+            for device in room.devices:
+                if device.id == id:
+                    return device
+        return None
 
-    def register_floor(self, level):
-        floor = Floor(level)
-        self.floors[level] = floor
-        return floor
-
-    def register_room(self, floor_level, room_size, room_name=None):
-        if floor_level not in self.floors:
-            raise ValueError(f"Floor {floor_level} not registered.")
-        room = Room(room_size, room_name)
-        self.floors[floor_level].add_room(room)
-        return room
-
-    def get_rooms(self):
-        rooms = []
-        for floor in self.floors.values():
-            rooms.extend(floor.get_rooms())
-        return rooms
-
-    def get_area(self):
-        return sum(room.room_size for room in self.get_rooms())
-
-    def get_device(self, device_id):
-        for room in self.get_rooms():
-            device = room.get_device(device_id)
-            if device:
-                return device
-
-    def get_devices(self):
-        devices = []
-        for room in self.get_rooms():
-            devices.extend(room.devices)
-        return devices
-    
-    def get_device_by_id(self, device_id):
-        for floor in self.floors.values():
-            for room in floor.get_rooms():
-                for device in room.devices:
-                    if device.device_id == device_id:
-                        return device
-        return None  # If the device isn't found, return None
+    def register_device(self, room, device):
+        room.devices.append(device)
 
     def load_devices_from_csv(self, csv_file_path):
-        with open(csv_file_path, newline='', encoding='utf-8') as csvfile:
-            # Assuming delimiter is semicolon based on the provided CSV format
-            reader = csv.DictReader(csvfile, delimiter=';')
-            for row in reader:
-                device_id = row['Identifikator']
-                device_type = row['Enhet']
-                supplier = row['Produsent']
-                model_name = row['Modellnavn']
-                room_name = row['Room']
+        print("Attempting to load devices from CSV...")
+        try:
+            with open(csv_file_path, newline='', encoding='utf-8-sig') as csvfile:
+                print("CSV file opened successfully.")
+                reader = csv.DictReader(csvfile, delimiter=',')
+                for row in reader:
+                    device_id = row['Identifikator']
+                    device_type = row['Enhet']
+                    supplier = row['Produsent']
+                    model_name = row['Modellnavn']
+                    room_name = row['Room']
 
-                room = next((r for r in self.get_rooms() if r.room_name == room_name), None)
-                if not room:
-                    print(f"Room '{room_name}' not found for device '{device_id}'. Skipping...")
-                    continue
+                    room = next((r for r in self.rooms if r.room_name == room_name), None)
+                    if not room:
+                        print(f"Room '{room_name}' not found for device '{device_id}'. Skipping...")
+                        continue
 
-                if 'Sensor' in device_type:
-                    device = Sensor(device_id, supplier, model_name)
-                elif 'Actuator' in device_type:
-                    device = Actuator(device_id, supplier, model_name)
-                else:
-                    print(f"Unknown device type '{device_type}' for device '{device_id}'. Skipping...")
-                    continue
+                    if 'Sensor' in device_type:
+                        device = Sensor(device_id, device_type, supplier, model_name)
+                    elif 'Actuator' in device_type:
+                        device = Actuator(device_id, device_type, supplier, model_name)
+                    else:
+                        device = Device(device_id, device_type, supplier, model_name)
 
-                room.add_device(device)
-                print(f"Added {device_type} to {room_name}")
-# Create a SmartHouse instance
-DEMO_HOUSE = SmartHouse()
-
-# Assuming you have already registered floors and rooms...
-
-# Load devices from CSV
-  # Replace with the actual path to your CSV file
-DEMO_HOUSE.load_devices_from_csv(csv_file_path)
-
-# For testing purposes, print the total number of devices
-print(f"Total number of devices registered: {len(DEMO_HOUSE.get_devices())}")
-
-if __name__ == "__main__":
-    # Run some tests if necessary
-    pass
+                    self.register_device(room, device)
+                    print(f"Added {device_type} to {room_name}")
+        except FileNotFoundError:
+            print(f"Error: File '{csv_file_path}' not found.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
