@@ -103,7 +103,7 @@ class SmartHouse:
                 # Legg enheten til i det nye rommet og oppdater enhetens romreferanse
                 new_room.devices.append(device)
                 device.room = new_room
-
+#5
     def load_devices_from_csv(self, csv_file_path):
         print("Attempting to load devices from CSV...")
         try:
