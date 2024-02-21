@@ -1,10 +1,21 @@
 import csv
+import random
+from datetime import datetime
+
+
+class Measurement:
+    def __init__(self, timestamp, value, unit):
+        self.timestamp = timestamp
+        self.value = value
+        self.unit = unit
+
 
 class Room:
     def __init__(self, room_name, area):
         self.room_name = room_name
         self.area = area
         self.devices = []
+
 
 class Device:
     def __init__(self, id, device_type, supplier, model_name):
@@ -15,13 +26,19 @@ class Device:
         self.room = None
 
     def is_sensor(self):
-        return "sensor" in self.device_type.lower()
+        return isinstance(self, Sensor)
 
     def is_actuator(self):
-        return hasattr(self, 'active')
+        return isinstance(self, Actuator)
+
 
 class Sensor(Device):
-    pass
+    def last_measurement(self):
+        # Returner en Measurement-instans i stedet for en ordbok
+        value = random.uniform(20.0, 30.0)
+        timestamp = datetime.now().isoformat()
+        return Measurement(timestamp, value, '°C')
+
 
 class Actuator(Device):
     def __init__(self, id, device_type, supplier, model_name):
@@ -40,12 +57,14 @@ class Actuator(Device):
     def is_active(self):
         return self.active
 
+
 class SmartHouse:
     def __init__(self):
         self.rooms = []
 
     def register_room(self, room_name, area):
-        self.rooms.append(Room(room_name, area))
+        room = Room(room_name, area)
+        self.rooms.append(room)
 
     def get_rooms(self):
         return self.rooms
@@ -64,7 +83,26 @@ class SmartHouse:
         return None
 
     def register_device(self, room, device):
+        # Fjern enheten fra det gamle rommet hvis den allerede er registrert et sted
+        if device.room:
+            device.room.devices.remove(device)
+        # Legg til enheten i det nye rommet
         room.devices.append(device)
+        # Oppdater enhetens romreferanse
+        device.room = room
+
+    def move_device_to_room(self, device_id, new_room_name):
+        device = self.get_device_by_id(device_id)
+        if device:
+            # Fjern enheten fra det gamle rommet
+            if device.room:
+                device.room.devices.remove(device)
+            # Finn det nye rommet
+            new_room = next((room for room in self.rooms if room.room_name == new_room_name), None)
+            if new_room:
+                # Legg enheten til i det nye rommet og oppdater enhetens romreferanse
+                new_room.devices.append(device)
+                device.room = new_room
 
     def load_devices_from_csv(self, csv_file_path):
         print("Attempting to load devices from CSV...")
@@ -80,20 +118,25 @@ class SmartHouse:
                     room_name = row['Room']
                     device_category = row['DeviceCategory']
 
+                    # Finn rommet basert på navnet
                     room = next((r for r in self.rooms if r.room_name == room_name), None)
                     if not room:
                         print(f"Room '{room_name}' not found for device '{device_id}'. Skipping...")
                         continue
 
-                    if 'Sensor' in device_category:
+                    # Opprett enheten basert på DeviceCategory
+                    if device_category == 'Sensor':
                         device = Sensor(device_id, device_type, supplier, model_name)
-                    elif 'Actuator' in device_category:
+                    elif device_category == 'Actuator':
                         device = Actuator(device_id, device_type, supplier, model_name)
                     else:
-                        device = Device(device_id, device_type, supplier, model_name)
+                        print(f"Unknown device category '{device_category}' for device '{device_id}'. Skipping...")
+                        continue
 
-                    self.register_device(room, device)
-                    print(f"Added {device_type} to {room_name}")
+                    # Legg enheten til i det tilsvarende rommet
+                    room.devices.append(device)
+                    device.room = room  # Sett enhetens romreferanse
+                    print(f"Added {device_type} ({device_category}) to {room_name}")
         except FileNotFoundError:
             print(f"Error: File '{csv_file_path}' not found.")
         except Exception as e:
