@@ -22,4 +22,5 @@ DEMO_HOUSE.register_room("Master Bedroom", 17)
 
 
 # Last inn enheter fra CSV
-DEMO_HOUSE.load_devices_from_csv('C:\\Python\\ing301gruppeA2\\tests\\Bookofmormons.csv')
+#DEMO_HOUSE.load_devices_from_csv('C:\\Python\\ing301gruppeA2\\tests\\Bookofmormons.csv')
+DEMO_HOUSE.load_devices_from_csv('/Users/kingston/Desktop/ING301/ing301public/ing301gruppeA2/tests/Bookofmormons.csv')
