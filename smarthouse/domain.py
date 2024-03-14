@@ -1,143 +1,191 @@
-import csv
-import random
 from datetime import datetime
-
+from random import random
+from typing import List, Optional, Union 
+from abc import abstractmethod
 
 class Measurement:
-    def __init__(self, timestamp, value, unit):
+    """
+    This class represents a measurement taken from a sensor.
+    """
+
+    def __init__(self, timestamp:str , value: float, unit: str) -> None:
         self.timestamp = timestamp
         self.value = value
         self.unit = unit
 
-
-class Room:
-    def __init__(self, room_name, area):
-        self.room_name = room_name
-        self.area = area
-        self.devices = []
-
-
 class Device:
-    def __init__(self, id, device_type, supplier, model_name):
+
+    def __init__(self, id: str, model_name: str, supplier: str, device_type: str):
         self.id = id
-        self.device_type = device_type
+        self.model_name = model_name 
         self.supplier = supplier
-        self.model_name = model_name
-        self.room = None
+        self.device_type = device_type
+        self.room : Optional[Room] = None
 
-    def is_sensor(self):
-        return isinstance(self, Sensor)
+    def get_device_type(self) -> str:
+        return self.device_type
 
-    def is_actuator(self):
-        return isinstance(self, Actuator)
+    @abstractmethod
+    def is_actuator(self) -> bool:
+        pass
+
+    @abstractmethod
+    def is_sensor(self) -> bool:
+        pass
 
 
 class Sensor(Device):
-    def last_measurement(self):
-        # Returner en Measurement-instans i stedet for en ordbok
-        value = random.uniform(20.0, 30.0)
-        timestamp = datetime.now().isoformat()
-        return Measurement(timestamp, value, '°C')
+
+    def __init__(self, id: str, model_name: str, supplier: str, device_type: str, unit: str = ""):
+        super().__init__(id, model_name, supplier, device_type)
+        self.unit = unit
+
+    def is_sensor(self) -> bool:
+        return True 
+    
+    def is_actuator(self) -> bool:
+        return False
+    
+    def last_measurement(self) -> Measurement:
+        return Measurement(datetime.now().isoformat(), random() * 10, self.unit)
+
+        
 
 
 class Actuator(Device):
-    def __init__(self, id, device_type, supplier, model_name):
-        super().__init__(id, device_type, supplier, model_name)
-        self.active = False
-        self.extra_info = None
+    def __init__(self, id: str, model_name: str, supplier: str, device_type: str):
+        super().__init__(id, model_name, supplier, device_type)
+        self.state : Union[float, bool] = False
 
-    def turn_on(self, extra_info=None):
-        self.active = True
-        self.extra_info = extra_info
+    def is_actuator(self) -> bool:
+        return True
+
+    def is_sensor(self) -> bool:
+        return False
+
+    def turn_on(self, target_value: Optional[float] = None):
+        if target_value:
+            self.state = target_value
+        else:
+            self.state = True
 
     def turn_off(self):
-        self.active = False
-        self.extra_info = None
+        self.state = False 
 
-    def is_active(self):
-        return self.active
+    def is_active(self) -> bool:
+        return self.state is not False
+
+
+class ActuatorWithSensor(Actuator, Sensor):
+
+    def __init__(self, id: str, model_name: str, supplier: str, device_type: str):
+        super().__init__(id, model_name, supplier, device_type)
+
+    def is_actuator(self) -> bool:
+        return True
+
+    def is_sensor(self) -> bool:
+        return True
+
+
+class Floor:
+
+    def __init__(self, level):
+        self.level = level
+        self.rooms = []
+
+class Room:
+
+    def __init__(self, floor: Floor, room_size: float, room_name: Optional[str]):
+        self.floor = floor 
+        self.room_size = room_size
+        self.room_name = room_name
+        self.devices : List[Device]= []
+
 
 
 class SmartHouse:
-    def __init__(self):
-        self.rooms = []
+    """
+    This class serves as the main entity and entry point for the SmartHouse system app.
+    Do not delete this class nor its predefined methods since other parts of the
+    application may depend on it (you are free to add as many new methods as you like, though).
 
-    def register_room(self, room_name, area):
-        room = Room(room_name, area)
-        self.rooms.append(room)
+    The SmartHouse class provides functionality to register rooms and floors (i.e. changing the 
+    house's physical layout) as well as register and modify smart devices and their state.
+    """
 
-    def get_rooms(self):
-        return self.rooms
+    def __init__(self) -> None:
+        self.floors : List[Floor]= []
 
-    def get_area(self):
-        return sum(room.area for room in self.rooms)
+    def register_floor(self, level: int) -> Floor:
+        """
+        This method registers a new floor at the given level in the house
+        and returns the respective floor object.
+        """
+        floor = Floor(level)
+        self.floors.append(floor)
+        return floor
 
-    def get_devices(self):
-        return [device for room in self.rooms for device in room.devices]
+    def register_room(self, floor: Floor, room_size: float, room_name: Optional[str] = None) -> Room:
+        """
+        This methods registers a new room with the given room areal size 
+        at the given floor. Optionally the room may be assigned a mnemonic name.
+        """
+        room = Room(floor, room_size, room_name)
+        floor.rooms.append(room)
+        return room
 
-    def get_device_by_id(self, id):
-        for room in self.rooms:
-            for device in room.devices:
-                if device.id == id:
-                    return device
-        return None
+    def get_floors(self) -> List[Floor]:
+        """
+        This method returns the list of registered floors in the house.
+        The list is ordered by the floor levels, e.g. if the house has 
+        registered a basement (level=0), a ground floor (level=1) and a first floor 
+        (leve=1), then the resulting list contains these three flors in the above order.
+        """
+        return self.floors
 
-    def register_device(self, room, device):
-        # Fjern enheten fra det gamle rommet hvis den allerede er registrert et sted
-        if device.room:
-            device.room.devices.remove(device)
-        # Legg til enheten i det nye rommet
+    def get_rooms(self) -> List[Room]:
+        """
+        This methods returns the list of all registered rooms in the house.
+        The resulting list has no particular order.
+        """
+        result = []
+        for f in self.floors:
+            result.extend(f.rooms)
+        return result
+
+    def get_area(self) -> float:
+        """
+        This methods return the total area size of the house, i.e. the sum of the area sizes of each room in the house.
+        """
+        result = 0.0
+        for r in self.get_rooms():
+            result += r.room_size
+        return result
+
+    def register_device(self, room: Room, device: Device):
+        """
+        This methods registers a given device in a given room.
+        """
+        old_room = device.room
+        if old_room:
+            old_room.devices.remove(device)
         room.devices.append(device)
-        # Oppdater enhetens romreferanse
         device.room = room
 
-    def move_device_to_room(self, device_id, new_room_name):
-        device = self.get_device_by_id(device_id)
-        if device:
-            # Fjern enheten fra det gamle rommet
-            if device.room:
-                device.room.devices.remove(device)
-            # Finn det nye rommet
-            new_room = next((room for room in self.rooms if room.room_name == new_room_name), None)
-            if new_room:
-                # Legg enheten til i det nye rommet og oppdater enhetens romreferanse
-                new_room.devices.append(device)
-                device.room = new_room
-#5
-    def load_devices_from_csv(self, csv_file_path):
-        print("Attempting to load devices from CSV...")
-        try:
-            with open(csv_file_path, newline='', encoding='utf-8-sig') as csvfile:
-                print("CSV file opened successfully.")
-                reader = csv.DictReader(csvfile, delimiter=',')
-                for row in reader:
-                    device_id = row['Identifikator']
-                    device_type = row['Enhet']
-                    supplier = row['Produsent']
-                    model_name = row['Modellnavn']
-                    room_name = row['Room']
-                    device_category = row['DeviceCategory']
-
-                    # Finn rommet basert på navnet
-                    room = next((r for r in self.rooms if r.room_name == room_name), None)
-                    if not room:
-                        print(f"Room '{room_name}' not found for device '{device_id}'. Skipping...")
-                        continue
-
-                    # Opprett enheten basert på DeviceCategory
-                    if device_category == 'Sensor':
-                        device = Sensor(device_id, device_type, supplier, model_name)
-                    elif device_category == 'Actuator':
-                        device = Actuator(device_id, device_type, supplier, model_name)
-                    else:
-                        print(f"Unknown device category '{device_category}' for device '{device_id}'. Skipping...")
-                        continue
-
-                    # Legg enheten til i det tilsvarende rommet
-                    room.devices.append(device)
-                    device.room = room  # Sett enhetens romreferanse
-                    print(f"Added {device_type} ({device_category}) to {room_name}")
-        except FileNotFoundError:
-            print(f"Error: File '{csv_file_path}' not found.")
-        except Exception as e:
-            print(f"An error occurred: {e}")
+    def get_devices(self) -> List[Device]:
+        """This method retrieves a list of all devices in the house"""
+        result = []
+        for r in self.get_rooms():
+            result.extend(r.devices)
+        return result
+   
+    def get_device_by_id(self, device_id: str) -> Optional[Device]:
+        """
+        This method retrieves a device object via its id.
+        """
+        for d in self.get_devices():
+            if d.id == device_id:
+                return d
+        return None
+  

@@ -80,7 +80,6 @@ class SmartHouseTest(unittest.TestCase):
         self.assertFalse(oven.is_active())
         self.assertFalse(plug.is_active())
         
-        
     def test_zadvanced_test_humidity_hours(self):
         bath = None 
         h = self.repo.load_smarthouse_deep()
