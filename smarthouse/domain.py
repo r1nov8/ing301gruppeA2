@@ -118,13 +118,14 @@ class SmartHouse:
         self.floors : List[Floor]= []
 
     def register_floor(self, level: int) -> Floor:
-        """
-        This method registers a new floor at the given level in the house
-        and returns the respective floor object.
-        """
-        floor = Floor(level)
-        self.floors.append(floor)
-        return floor
+        # Sjekker først om etasjen allerede er registrert
+        for floor in self.floors:
+            if floor.level == level:
+                return floor
+        # Hvis ikke, registrerer en ny etasje
+        new_floor = Floor(level)
+        self.floors.append(new_floor)
+        return new_floor
 
     def register_room(self, floor: Floor, room_size: float, room_name: Optional[str] = None) -> Room:
         """
