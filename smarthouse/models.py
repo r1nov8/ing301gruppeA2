@@ -1,15 +1,13 @@
-from typing import Any, List, Type
 from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
 
 class MeasurementModel(BaseModel):
+    device: str
     ts: datetime
     value: float
     unit: str
-
-    class Config:
-        from_attributes = True
-
+    
 class DeviceModel(BaseModel):
     id: str
     room: int
@@ -17,29 +15,20 @@ class DeviceModel(BaseModel):
     category: str
     supplier: str
     product: str
-    measurements: List[MeasurementModel] = []
-
-    class Config:
-        from_attributes = True
+    measurements: Optional[List[MeasurementModel]] = None
 
 class RoomModel(BaseModel):
-    level: int
-    rooms: List[DeviceModel] = []
-
-    class Config:
-        from_attributes = True
+    id: int
+    floor: int
+    area: float
+    name: str
+    devices: Optional[List[DeviceModel]] = None
 
 class FloorModel(BaseModel):
     level: int
-    rooms: List[RoomModel] = []
+    rooms: Optional[List[RoomModel]] = None
 
-    class Config:
-        from_attributes = True
-
-class SmartHouseModel(BaseModel):
-    floors: List[FloorModel] = []
-
-    class Config:
-        from_attributes = True
-
-    
+class ActuatorStateModel(BaseModel):
+    device: str
+    state: bool
+    ts: datetime

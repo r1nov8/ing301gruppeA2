@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
 from typing import List
-from models import FloorModel, RoomModel, DeviceModel
+from smarthouse.models import FloorModel, RoomModel, DeviceModel
 
 
 def setup_database():
@@ -58,47 +58,64 @@ def get_smarthouse_info() -> dict[str, int | float]:
 # https://github.com/selabhvl/ing301-projectpartC-startcode?tab=readme-ov-file#oppgavebeskrivelse
 # here ...
 
-@app.get("/smarthouse/floor", response_model=List[FloorModel])
+@app.get("/smarthouse/floor")
 def get_all_floors():
-    return smarthouse.get_floors()
+    floors = smarthouse.get_floors()
+    return [{"level": floor.level, "rooms": [
+        {"room_size": room.room_size, "room_name": room.room_name} for room in floor.rooms
+    ]} for floor in floors]
 
-@app.get("/smarthouse/floor/{fid}", response_model=FloorModel)
+@app.get("/smarthouse/floor/{fid}")
 def get_floor_info(fid: int):
-    floor = smarthouse.get_floor_by_id(fid)  # Anta at denne metoden returnerer et Floor-objekt eller None
-    if floor is None:
+    floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
+    if not floor:
         raise HTTPException(status_code=404, detail="Floor not found")
-    return floor
+    return {"level": floor.level, "rooms": [
+        {"room_size": room.room_size, "room_name": room.room_name} for room in floor.rooms
+    ]}
 
-@app.get("/smarthouse/floor/{fid}/room", response_model=List[RoomModel])
+@app.get("/smarthouse/floor/{fid}/room")
 def get_rooms_on_floor(fid: int):
-    floor = smarthouse.get_floor_by_id(fid)
-    if floor is None:
+    floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
+    if not floor:
         raise HTTPException(status_code=404, detail="Floor not found")
-    return floor.rooms
+    return [{"room_size": room.room_size, "room_name": room.room_name} for room in floor.rooms]
 
-@app.get("/smarthouse/floor/{fid}/room/{rid}", response_model=RoomModel)
+@app.get("/smarthouse/floor/{fid}/room/{rid}")
 def get_specific_room(fid: int, rid: str):
-    floor = smarthouse.get_floor_by_id(fid)
-    if floor is None:
+    floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
+    if not floor:
         raise HTTPException(status_code=404, detail="Floor not found")
-    
-    room = next((room for room in floor.rooms if room.room_name == rid), None)
-    if room is None:
+    room = next((r for r in floor.rooms if r.room_name == rid), None)
+    if not room:
         raise HTTPException(status_code=404, detail="Room not found on this floor")
-    return room
 
-@app.get("/smarthouse/device/", response_model=List[DeviceModel])
-def get_all_device():
+    # Include device information in the response
+    devices = [{"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type} for device in room.devices]
+    
+    room_size_with_unit = f"{room.room_size} kvm"
+
+    return {
+        "room_size": room_size_with_unit, 
+        "room_name": room.room_name,
+        "devices": devices  # Add devices list to the response
+    }
+
+@app.get("/smarthouse/device")
+def get_all_devices():
+    """
+    This endpoint returns information on all devices.
+    """
     devices = smarthouse.get_devices()
-    return devices
+    # Antar at 'devices' er en liste av Device objekter
+    return [{"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type} for device in devices]
 
-@app.get("/smarthouse/device/{uuid}", response_model=DeviceModel)
+@app.get("/smarthouse/device/{uuid}")
 def get_device_by_uuid(uuid: str):
-    # Finn enheten basert på UUID (dette er en forenklet eksempel)
-    device = smarthouse.get_device_by_id(uuid)  # Du må implementere denne funksjonen
-    if device is None:
+    device = smarthouse.get_device_by_id(uuid)
+    if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    return device
+    return {"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type}
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)
