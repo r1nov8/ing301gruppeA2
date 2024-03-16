@@ -4,8 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
-from typing import List
-from smarthouse.models import FloorModel, RoomModel, DeviceModel
+from typing import List, Any, Dict
 
 
 def setup_database():
@@ -94,7 +93,7 @@ def get_specific_room(fid: int, rid: str):
     devices = [{"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type} for device in room.devices]
     
     room_size_with_unit = f"{room.room_size} kvm"
-
+    
     return {
         "room_size": room_size_with_unit, 
         "room_name": room.room_name,
@@ -116,6 +115,14 @@ def get_device_by_uuid(uuid: str):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return {"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type}
+
+@app.get("/smarthouse/sensor/{uuid}/current")
+def get_current_sensor_measurement(uuid: str):
+    measurement = repo.get_latest_reading(uuid)
+    if measurement:
+        return measurement
+    else:
+        raise HTTPException(status_code=404, detail="Measurement not found")
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -1,0 +1,25 @@
+meta {
+  name: Get rooms on 1.Floor
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://127.0.0.1:8000/smarthouse/floor/1/room
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body[0].room_name: eq "Living Room / Kitchen"
+  res.body[0].room_size: eq 39.75
+  res.body[1].room_name: eq "Entrance"
+  res.body[1].room_size: eq 13.5
+  res.body[2].room_name: eq "Guest Room 1"
+  res.body[2].room_size: eq 8
+  res.body[3].room_name: eq "Bathroom 1"
+  res.body[3].room_size: eq 6.3
+  res.body[4].room_name: eq "Garage"
+  res.body[4].room_size: eq 19
+}

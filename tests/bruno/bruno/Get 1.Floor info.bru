@@ -1,0 +1,15 @@
+meta {
+  name: Get 1.Floor info
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://127.0.0.1:8000/smarthouse/floor/1
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}

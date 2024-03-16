@@ -14,6 +14,9 @@ class SmartHouseRepository:
         self.conn = sqlite3.connect(file) # Oppretter en forbindelse til db.
         self.setup_database() # Kaller en metode for oppretting av tabell i db
 
+    def get_conn(self):
+        return sqlite3.connect(self.file)
+    
     # Setter opp db ved å oprette tabeller om den ikke eksisterer.
     def setup_database(self):
         cursor = self.conn.cursor() # Oppretter en databasepeker
@@ -87,17 +90,21 @@ class SmartHouseRepository:
         return smarthouse
 
     # Henter den siste målingen for en gitt sensor, hvis tilgjengelig.
-    def get_latest_reading(self, sensor) -> Optional[Measurement]:
+    def get_latest_reading(self, sensor: str) -> Optional[Measurement]:
         """
         Retrieves the most recent sensor reading for the given sensor if available.
         Returns None if the given object has no sensor readings.
         """
+        sensor_id = sensor if isinstance(sensor, str) else sensor.id
         # Utfører en spørring for å finne den siste målingen for den gitte sensoren
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT 1", (sensor.id,))
-        row = cursor.fetchone()
-        return Measurement(row[0], row[1], row[2]) if row else None
-    
+        with self.get_conn() as conn:    
+            cursor = conn.cursor()
+            cursor.execute("SELECT ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT 1", (sensor_id,))
+            row = cursor.fetchone()
+            if row:
+                return Measurement(row[0], row[1], row[2]) 
+            return None
+        
     # Oppdaterer tilstanden for en gitt aktuator i db.
     def update_actuator_state(self, actuator):
         """
@@ -113,6 +120,17 @@ class SmartHouseRepository:
         self.conn.commit() # Lagrer endringene
         cursor.close()
 
+    def add_measurement(self, sensor_id: str, value: float, unit: str):
+        '''
+        Adds a new measurement for sensor.
+        '''
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, (sensor_id, value, unit))
+            conn.commit()
+                           
     # statistics
     
     # Beregner gjennomsnittstemperaturen i et gitt rom for en gitt tidsperiode.
