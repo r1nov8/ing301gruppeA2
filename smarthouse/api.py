@@ -1,11 +1,15 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Depends, Path
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
-from typing import List, Any, Dict
-
+from typing import List, Union
+from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel
+from smarthouse.domain import Sensor, Actuator
+from uuid import UUID
+from datetime import datetime
+from random import uniform
 
 def setup_database():
     project_dir = Path(__file__).parent.parent
@@ -16,7 +20,6 @@ def setup_database():
 app = FastAPI()
 
 repo = setup_database()
-router = APIRouter()
 
 smarthouse = repo.load_smarthouse_deep()
 
@@ -108,27 +111,49 @@ def get_specific_room(fid: int, rid: str):
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found on this floor")
 
-    # Include device information in the response
-    devices = [{"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type} for device in room.devices]
-    
-    room_size_with_unit = f"{room.room_size} kvm"
-    
-    return {
-        "room_size": room_size_with_unit, 
-        "room_name": room.room_name,
-        "devices": devices  # Add devices list to the response
-    }
+    return RoomModel(room_size=room.room_size, room_name=room.room_name)
 
-@app.get("/smarthouse/device")
+@app.get("/smarthouse/device", response_model=List[DeviceModel])
 def get_all_devices():
-    """
-    This endpoint returns information on all devices.
-    """
-    devices = smarthouse.get_devices()
-    # Antar at 'devices' er en liste av Device objekter
-    return [{"id": device.id, "model_name": device.model_name, "supplier": device.supplier, "device_type": device.device_type} for device in devices]
+    devices = smarthouse.get_devices()  # Assuming this retrieves all devices correctly
+    response = []
+    for device in devices:
+        # Now build your response based on the type of device
+        if isinstance(device, Sensor):
+            response.append(SensorModel(
+                id=device.id,
+                kind=device.device_type,  # Assuming direct access to attribute
+                supplier=device.supplier,
+                product=device.model_name,
+                unit=device.unit
+            ))
+        elif isinstance(device, Actuator):
+            response.append(ActuatorModel(
+                id=device.id,
+                kind=device.device_type,
+                supplier=device.supplier,
+                product=device.model_name,
+                state=device.state
+            ))
+        else:
+            response.append(DeviceModel(
+                id=device.id,
+                kind=device.device_type,
+                supplier=device.supplier,
+                product=device.model_name
+            ))
+    return response
 
-@app.get("/smarthouse/device/{uuid}")
+# Define a mapping from device kinds to units
+SENSOR_UNITS = {
+    "Temperature Sensor": "°C",
+    "Humidity Sensor": "%",
+    "Electricity Meter": "kWh",
+    "CO2 sensor": "ppm",
+    # Add more mappings for other device kinds as needed
+}
+
+@app.get("/smarthouse/device/{uuid}", response_model=Union[SensorModel, ActuatorModel])
 def get_device_by_uuid(uuid: str):
 
     device = smarthouse.get_device_by_id(uuid)  # Retrieve the device by its ID
@@ -158,13 +183,46 @@ def get_device_by_uuid(uuid: str):
         # If the device is neither a sensor nor an actuator, raise a 404 error
         raise HTTPException(status_code=404, detail="Device type not supported")
 
-@app.get("/smarthouse/sensor/{uuid}/current")
+@app.get("/smarthouse/sensor/{uuid}/current", response_model=MeasurementModel)
 def get_current_sensor_measurement(uuid: str):
-    measurement = repo.get_latest_reading(uuid)
-    if measurement:
-        return measurement
-    else:
-        raise HTTPException(status_code=404, detail="Measurement not found")
+    # Fetch the latest sensor measurement using the provided UUID
+    measurement = repo.get_latest_reading(sensor=uuid)
+    if not measurement:
+        raise HTTPException(status_code=404, detail="No measurement found for this sensor")
+
+    # Note: Adjusted to match the actual attributes of the Measurement class
+    return MeasurementModel(
+        device=uuid,  # Assuming you want to return the sensor UUID as the device identifier
+        ts=measurement.timestamp,  # Corrected attribute name
+        value=measurement.value,
+        unit=measurement.unit
+    )
+# Define a mapping from device kinds to units
+SENSOR_UNITS = {
+    "Temperature Sensor": "°C",
+    "Humidity Sensor": "%",
+    "Electricity Meter": "kWh",
+    "CO2 sensor": "ppm",
+    # Add more mappings for other device kinds as needed
+}
+
+@app.post("/smarthouse/sensor/{uuid}/current")
+def add_measurement_for_sensor(uuid: UUID, measurement: MeasurementModel, repo: SmartHouseRepository = Depends(setup_database)):
+    # Get the correct unit based on the sensor type
+    sensor = repo.get_sensor_by_id(str(uuid))
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+
+    correct_unit = SENSOR_UNITS.get(sensor.device_type, "%")
+    
+    # Here, make sure measurement.ts is an ISO format string
+    try:
+        formatted_ts = measurement.timestamp.replace(microsecond=0, tzinfo=None).isoformat().replace('T', ' ')
+        repo.add_measurement(sensor_id=str(uuid), ts=formatted_ts, value=measurement.value, unit=correct_unit)
+        return {"message": "Measurement added successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)
