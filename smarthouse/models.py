@@ -1,51 +1,42 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Union
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
-
-class MeasurementModel(BaseModel):
-    device: str
-    ts: datetime
-    value: float
-    unit: str
-
-class DeviceModel(BaseModel):
-    id: str
-    room: int
-    kind: str
-    category: str
-    supplier: str
-    product: str
-    measurements: List[MeasurementModel] = []
-
-class SensorModel(DeviceModel):
-    unit: str
-
-    # Assuming last_measurement() method exists in Sensor and returns a Measurement object.
-    # If not, we'll need to create a method or logic to fetch the last measurement for the sensor.
-    def last_measurement(self) -> MeasurementModel:
-        # This method should be implemented in the domain layer (business logic)
-        pass
-
-class ActuatorModel(DeviceModel):
-    state: bool
-
-    # Assuming methods like turn_on(), turn_off() and is_active() exist in Actuator.
-    # We can also add a method to return the current state of the actuator.
-
-class ActuatorWithSensorModel(SensorModel, ActuatorModel):
-    pass  # This class inherits from both SensorModel and ActuatorModel
+from uuid import UUID
 
 class RoomModel(BaseModel):
-    id: int
-    floor: int
-    area: float
-    name: Optional[str] = None
-    devices: List[DeviceModel] = []
+    room_size: float
+    room_name: str
 
 class FloorModel(BaseModel):
     level: int
-    rooms: List[RoomModel] = []
+    rooms: List[RoomModel]
 
-class SmartHouseModel(BaseModel):
-    floors: List[FloorModel] = []
-    # Optionally, you can add other fields like total area etc. if needed.
+class DeviceModel(BaseModel):
+    id: str
+    kind: str = Field(..., description="The type of the device, such as sensor or actuator")
+    supplier: str = Field(..., description="The supplier of the device")
+    product: str = Field(..., description="The product name or model of the device")
+
+class SensorModel(DeviceModel):
+    unit: str = Field(..., description="The unit of measurement for the sensor")
+
+class ActuatorModel(DeviceModel):
+    state: Union[float, bool] = Field(..., description="The current state of the actuator, could be a boolean or a float value")
+
+class MeasurementModel(BaseModel):
+    device: UUID = Field(..., description="The device UUID")
+    value: float = Field(..., description="The measured value")
+    unit: str = Field(..., description="The unit of measurement")
+    timestamp: Optional[datetime] = Field(default_factory=datetime.now, description="The timestamp of the measurement")
+
+    # Validator to format timestamp for serialization
+    @validator('timestamp', pre=True, allow_reuse=True)
+    def format_timestamp(cls, value):
+        if isinstance(value, datetime):
+            return value.strftime('%Y-%m-%d %H:%M:%S')
+        return value
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.strftime('%Y-%m-%d %H:%M:%S')
+        }

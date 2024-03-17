@@ -88,6 +88,7 @@ class SmartHouseRepository:
                     device.turn_off()
 
         return smarthouse
+    
 
     # Henter den siste målingen for en gitt sensor, hvis tilgjengelig.
     def get_latest_reading(self, sensor: str) -> Optional[Measurement]:
@@ -118,18 +119,26 @@ class SmartHouseRepository:
             ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
         """, (actuator.id, state_value))
         self.conn.commit() # Lagrer endringene
-        cursor.close()
+        
 
-    def add_measurement(self, sensor_id: str, value: float, unit: str):
-        '''
-        Adds a new measurement for sensor.
-        '''
+    def get_sensor_by_id(self, sensor_id: str) -> Optional[Sensor]:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT kind FROM devices WHERE id = ?", (sensor_id,))
+            kind = cursor.fetchone()
+            if kind:
+                # Assuming that 'kind' corresponds to device_type in Sensor class
+                return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
+            return None
+        
+    def add_measurement(self, sensor_id: str, ts: str, value: float, unit: str):
         with self.get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """, (sensor_id, value, unit))
-            conn.commit()
+                INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, ?)
+            """, (sensor_id, ts, value, unit))
+            self.conn.commit()
+            cursor.close()
                            
     # statistics
     
