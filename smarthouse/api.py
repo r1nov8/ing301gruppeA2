@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import List, Union
 from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel
 from smarthouse.domain import Sensor, Actuator
-from uuid import UUID, uuid4
+from uuid import UUID
+from datetime import datetime
+from random import uniform
+
 def setup_database():
     project_dir = Path(__file__).parent.parent
     db_file = project_dir / "data" / "db.sql" # you have to adjust this if you have changed the file name of the database
@@ -194,6 +197,14 @@ def get_current_sensor_measurement(uuid: str):
         value=measurement.value,
         unit=measurement.unit
     )
+# Define a mapping from device kinds to units
+SENSOR_UNITS = {
+    "Temperature Sensor": "°C",
+    "Humidity Sensor": "%",
+    "Electricity Meter": "kWh",
+    "CO2 sensor": "ppm",
+    # Add more mappings for other device kinds as needed
+}
 
 @app.post("/smarthouse/sensor/{uuid}/current")
 def add_measurement_for_sensor(uuid: UUID, measurement: MeasurementModel, repo: SmartHouseRepository = Depends(setup_database)):
@@ -211,6 +222,7 @@ def add_measurement_for_sensor(uuid: UUID, measurement: MeasurementModel, repo: 
         return {"message": "Measurement added successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

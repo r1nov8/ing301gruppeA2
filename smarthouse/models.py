@@ -31,7 +31,7 @@ class MeasurementModel(BaseModel):
 
     # Validator to format timestamp for serialization
     @validator('timestamp', pre=True, allow_reuse=True)
-    def format_timestamp(cls, value):
+    def format_ts(cls, value):
         if isinstance(value, datetime):
             return value.strftime('%Y-%m-%d %H:%M:%S')
         return value

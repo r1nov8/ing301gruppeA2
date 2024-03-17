@@ -131,13 +131,24 @@ class SmartHouseRepository:
                 return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
             return None
         
+    def get_value_range_for_sensor_type(self, sensor_type: str) -> tuple:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT MIN(value), MAX(value) FROM measurements 
+                INNER JOIN devices ON measurements.device = devices.id 
+                WHERE devices.kind = ?
+            """, (sensor_type,))
+            row = cursor.fetchone()
+            return (row[0] or 0, row[1] or 100)
+        
     def add_measurement(self, sensor_id: str, ts: str, value: float, unit: str):
         with self.get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, ?)
             """, (sensor_id, ts, value, unit))
-            self.conn.commit()
+            conn.commit()
             cursor.close()
                            
     # statistics
