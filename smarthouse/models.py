@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 from pydantic import BaseModel, Field, validator
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 class RoomModel(BaseModel):
@@ -29,14 +29,21 @@ class MeasurementModel(BaseModel):
     unit: str = Field(..., description="The unit of measurement")
     timestamp: Optional[datetime] = Field(default_factory=datetime.now, description="The timestamp of the measurement")
 
-    # Validator to format timestamp for serialization
     @validator('timestamp', pre=True, allow_reuse=True)
-    def format_ts(cls, value):
-        if isinstance(value, datetime):
-            return value.strftime('%Y-%m-%d %H:%M:%S')
-        return value
+    def parse_timestamp(cls, v):
+        if isinstance(v, str):
+            try:
+                # Handles ISO format with 'Z' as UTC
+                if v.endswith('Z'):
+                    return datetime.fromisoformat(v.replace('Z', '+00:00'))
+                else:
+                    return datetime.strptime(v, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                raise ValueError(f"Timestamp '{v}' is not in the expected format.")
+        return v
 
     class Config:
+        orm_mode = True
         json_encoders = {
-            datetime: lambda v: v.strftime('%Y-%m-%d %H:%M:%S')
+            datetime: lambda v: v.strftime('%Y-%m-%d %H:%M:%S') if v.tzinfo else v.isoformat()
         }

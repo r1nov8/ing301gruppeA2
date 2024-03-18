@@ -131,17 +131,6 @@ class SmartHouseRepository:
                 return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
             return None
         
-    def get_value_range_for_sensor_type(self, sensor_type: str) -> tuple:
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT MIN(value), MAX(value) FROM measurements 
-                INNER JOIN devices ON measurements.device = devices.id 
-                WHERE devices.kind = ?
-            """, (sensor_type,))
-            row = cursor.fetchone()
-            return (row[0] or 0, row[1] or 100)
-        
     def add_measurement(self, sensor_id: str, ts: str, value: float, unit: str):
         with self.get_conn() as conn:
             cursor = conn.cursor()
@@ -150,6 +139,18 @@ class SmartHouseRepository:
             """, (sensor_id, ts, value, unit))
             conn.commit()
             cursor.close()
+    
+    def get_latest_sensor_measurements(self, sensor_id: str, limit: Optional[int] = None) -> list:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            if limit is not None:
+                cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT ?", (sensor_id, limit))
+            else:
+                cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC", (sensor_id,))
+            measurements = cursor.fetchall()
+        # Convert the raw data into Measurement instances or a suitable format for the endpoint
+        return [Measurement(timestamp=m[1], value=m[2], unit=m[3]) for m in measurements]
+     
                            
     # statistics
     

@@ -4,12 +4,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Optional
 from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel
 from smarthouse.domain import Sensor, Actuator
 from uuid import UUID
 from datetime import datetime
 from random import uniform
+import logging
 
 def setup_database():
     project_dir = Path(__file__).parent.parent
@@ -75,7 +76,6 @@ def get_all_floors():
             ]
         ) for floor in floors_data
     ]
-
 
 @app.get("/smarthouse/floor/{fid}", response_model=FloorModel)
 def get_floor_info(fid: int):
@@ -197,32 +197,61 @@ def get_current_sensor_measurement(uuid: str):
         value=measurement.value,
         unit=measurement.unit
     )
-# Define a mapping from device kinds to units
-SENSOR_UNITS = {
-    "Temperature Sensor": "°C",
-    "Humidity Sensor": "%",
-    "Electricity Meter": "kWh",
-    "CO2 sensor": "ppm",
-    # Add more mappings for other device kinds as needed
-}
 
-@app.post("/smarthouse/sensor/{uuid}/current")
-def add_measurement_for_sensor(uuid: UUID, measurement: MeasurementModel, repo: SmartHouseRepository = Depends(setup_database)):
-    # Get the correct unit based on the sensor type
+@app.post("/smarthouse/sensor/{uuid}/current", response_model=MeasurementModel)
+def add_measurement_for_sensor(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+    # Get the sensor by its UUID
     sensor = repo.get_sensor_by_id(str(uuid))
+    
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")
-
-    correct_unit = SENSOR_UNITS.get(sensor.device_type, "%")
     
-    # Here, make sure measurement.ts is an ISO format string
+    # Generate random values based on the sensor type
+    value, unit = generate_random_value_for_sensor_type(sensor.device_type)
+    
+    # Create a new MeasurementModel instance with the generated values
+    new_measurement = MeasurementModel(
+        device=uuid,
+        value=value,
+        unit=unit,
+        timestamp=datetime.now()  # This will use the default_factory if not specified
+    )
+
+    # Add the new measurement to the database using the repository
     try:
-        formatted_ts = measurement.timestamp.replace(microsecond=0, tzinfo=None).isoformat().replace('T', ' ')
-        repo.add_measurement(sensor_id=str(uuid), ts=formatted_ts, value=measurement.value, unit=correct_unit)
-        return {"message": "Measurement added successfully."}
+        repo.add_measurement(sensor_id=str(uuid), ts=new_measurement.timestamp.strftime('%Y-%m-%d %H:%M:%S'), value=round(new_measurement.value, 2), unit=new_measurement.unit)
+        return new_measurement
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def generate_random_value_for_sensor_type(device_type: str) -> tuple[float, str]:
+    if device_type == "Humidity Sensor":
+        return uniform(0, 100), "%"
+    elif device_type == "CO2 sensor":
+        return uniform(400, 1000), "ppm"
+    elif device_type == "Temperature Sensor":
+        return uniform(18, 28), "°C"
+    elif device_type == "Electricity Meter":
+        current_hour = datetime.now().hour
+        if 8 <= current_hour < 23:
+            return uniform(0, 35 * (current_hour - 8) / (23 - 8)), "kWh"
+        else:
+            return 0, "kWh"
+    else:
+ 
+        value = 0
+    value = round(value, 1)    
+    correct_unit = SENSOR_UNITS.get(device_type, "%")
+    return value, correct_unit
+
+@app.get("/smarthouse/sensor/{uuid}/values", response_model=List[MeasurementModel])
+def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None, repo: SmartHouseRepository = Depends(setup_database)):
+    try:
+        sensor_measurements = repo.get_latest_sensor_measurements(sensor_id=str(uuid), limit=limit)
+        
+        return [MeasurementModel(device=uuid, timestamp=m.timestamp, value=m.value, unit=m.unit) for m in sensor_measurements]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sensor measurements: {str(e)}")
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)
