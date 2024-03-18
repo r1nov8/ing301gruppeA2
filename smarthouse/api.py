@@ -253,5 +253,16 @@ def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None, repo: Smar
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch sensor measurements: {str(e)}")
 
+@app.delete("/smarthouse/sensor/{uuid}/oldest")
+def delete_oldest_measurement(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+    try:
+        result = repo.delete_oldest_measurement_for_sensor(sensor_id=str(uuid))
+        if result:
+            return {"message": "Oldest measurement deleted successfully."}
+        else:
+            raise HTTPException(status_code=404, detail="No measurements found for this sensor.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

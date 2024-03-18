@@ -150,7 +150,27 @@ class SmartHouseRepository:
             measurements = cursor.fetchall()
         # Convert the raw data into Measurement instances or a suitable format for the endpoint
         return [Measurement(timestamp=m[1], value=m[2], unit=m[3]) for m in measurements]
-     
+    
+    def delete_oldest_measurement_for_sensor(self, sensor_id: str) -> bool:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            # Først, finn ID-en til den eldste målingen for sensoren
+            cursor.execute("""
+                SELECT ts FROM measurements
+                WHERE device = ?
+                ORDER BY ts ASC
+                LIMIT 1
+            """, (sensor_id,))
+            oldest_measurement_ts = cursor.fetchone()
+            if oldest_measurement_ts:
+                # Deretter, slett den eldste målingen
+                cursor.execute("""
+                    DELETE FROM measurements
+                    WHERE device = ? AND ts = ?
+                """, (sensor_id, oldest_measurement_ts[0]))
+                conn.commit()
+                return True
+            return False
                            
     # statistics
     
