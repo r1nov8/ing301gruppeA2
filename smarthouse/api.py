@@ -1,16 +1,16 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, Path
+from fastapi import FastAPI, HTTPException, Depends, Path, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
 from typing import List, Union, Optional
-from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel
+from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel, ActuatorStateUpdateRequest
 from smarthouse.domain import Sensor, Actuator
 from uuid import UUID
 from datetime import datetime
 from random import uniform
-import logging
+
 
 def setup_database():
     project_dir = Path(__file__).parent.parent
@@ -263,6 +263,66 @@ def delete_oldest_measurement(uuid: UUID, repo: SmartHouseRepository = Depends(s
             raise HTTPException(status_code=404, detail="No measurements found for this sensor.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-    
+
+@app.get("/smarthouse/actuator/{uuid}/current", response_model=ActuatorModel)
+def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+    # Use the repository to get the current state of the actuator
+    actuator = repo.get_actuator_state_by_id(str(uuid))
+    if not actuator:
+        raise HTTPException(status_code=404, detail="Actuator not found")
+
+    # Translate the boolean state to a user-friendly description
+    state_description = "active" if actuator.is_active() else "inactive"
+
+    # Return the actuator state as per the ActuatorModel response model
+    return ActuatorModel(
+        id=str(uuid),
+        kind=actuator.device_type,
+        supplier=actuator.supplier,
+        product=actuator.model_name,
+        #state=actuator.state,  # Preserving the original state data
+        state_description=state_description  # Adding the descriptive state
+   )
+
+@app.put("/smarthouse/device/{uuid}", response_model=ActuatorModel)
+async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends()):
+    # Fetch the actuator by UUID using the existing shared connection (for now)
+    actuator = repo.get_actuator_state_by_id(str(uuid))
+    if not actuator:
+        raise HTTPException(status_code=404, detail="Actuator not found")
+
+    # Manually handle connection for updating actuator state to avoid threading issues
+    with repo.get_conn() as new_conn:
+        # Manually create a cursor for this operation
+        cursor = new_conn.cursor()
+
+        # Perform the update operation with a freshly created connection and cursor
+        state_value = 'True' if state_update.state else 'False'  # Assuming state_update.state is a boolean
+        cursor.execute("""
+            INSERT INTO actuator_states (device, state) VALUES (?, ?)
+            ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
+        """, (str(uuid), state_value))
+        new_conn.commit()  # Commit changes with the new connection
+
+    # Since the update operation is done, you might want to update the in-memory object as well
+    # This step is crucial to ensure the response reflects the new state
+    if isinstance(state_update.state, bool):
+        if state_update.state:
+            actuator.turn_on()
+        else:
+            actuator.turn_off()
+    # If actuator supports numeric states, handle it accordingly here
+
+    # Prepare the response
+    state_description = "active" if actuator.is_active() else "inactive"
+    return {
+        "id": str(uuid),
+        "kind": actuator.device_type,
+        "supplier": actuator.supplier,
+        "product": actuator.model_name,
+        "state": state_update.state,
+        "state_description": state_description
+    }
+
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -21,8 +21,12 @@ class SensorModel(DeviceModel):
     unit: str = Field(..., description="The unit of measurement for the sensor")
 
 class ActuatorModel(DeviceModel):
-    state: Union[float, bool] = Field(..., description="The current state of the actuator, could be a boolean or a float value")
+    #state: Union[float, bool] = Field(..., description="The current state of the actuator, could be a boolean or a float value")
+    state_description: str = Field(None, description="A user-friendly description of the state ('active' or 'inactive')")
 
+class ActuatorStateUpdateRequest(BaseModel):
+    state: Union[bool, float]
+    
 class MeasurementModel(BaseModel):
     device: UUID = Field(..., description="The device UUID")
     value: float = Field(..., description="The measured value")

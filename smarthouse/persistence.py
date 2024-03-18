@@ -19,7 +19,18 @@ class SmartHouseRepository:
     
     # Setter opp db ved å oprette tabeller om den ikke eksisterer.
     def setup_database(self):
-        cursor = self.conn.cursor() # Oppretter en databasepeker
+        cursor = self.conn.cursor() 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS devices (
+                id TEXT PRIMARY KEY,
+                room TEXT,
+                kind TEXT,
+                category TEXT,
+                supplier TEXT,
+                product TEXT,
+                FOREIGN KEY(room) REFERENCES rooms(id)
+            );
+        """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS actuator_states (
                 device TEXT NOT NULL,
@@ -29,7 +40,9 @@ class SmartHouseRepository:
                 FOREIGN KEY(device) REFERENCES devices(id)
             );
         """)
-        self.conn.commit() # Lagrer endringene i databasen
+        # Include any other necessary table creation statements here
+        self.conn.commit()
+
 
     # Lukker db-tilkoblingen når objektet blir slettet.
     def __del__(self):
@@ -119,6 +132,27 @@ class SmartHouseRepository:
             ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
         """, (actuator.id, state_value))
         self.conn.commit() # Lagrer endringene
+        
+    def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT d.id, d.kind, d.supplier, d.product, a.state
+                FROM devices d
+                INNER JOIN actuator_states a ON d.id = a.device
+                WHERE d.id = ? AND d.category = 'actuator'
+            """, (actuator_id,))  # Ensure actuator_id is a tuple by adding a comma
+            row = cursor.fetchone()
+            if row:
+                actuator = Actuator(
+                    id=row[0],
+                    model_name=row[3],
+                    supplier=row[2],
+                    device_type=row[1]
+                )
+                actuator.state = True if row[4] == 'True' else False
+                return actuator
+            return None
         
 
     def get_sensor_by_id(self, sensor_id: str) -> Optional[Sensor]:
