@@ -268,7 +268,7 @@ def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(
         raise HTTPException(status_code=404, detail="Actuator not found")
 
     # Translate the boolean state to a user-friendly description
-    state_description = "active" if actuator.is_active() else "inactive"
+    #state_description = "active" if actuator.is_active() else "inactive"
 
     # Return the actuator state as per the ActuatorModel response model
     return ActuatorModel(
@@ -276,33 +276,29 @@ def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(
         kind=actuator.device_type,
         supplier=actuator.supplier,
         product=actuator.model_name,
-        #state=actuator.state,  # Preserving the original state data
-        state_description=state_description  # Adding the descriptive state
+        state=actuator.state,  # Preserving the original state data
+        #state_description=state_description  # Adding the descriptive state
    )
-
 @app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
-async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest):
-    # Fetch the actuator by UUID using the existing shared connection (for now)
+
+async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends(setup_database)):
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
 
-    # Update the actuator's state based on the request
-    if state_update.state is True:
+    if state_update.state == True:
         actuator.turn_on()
-    elif state_update.state is False:
+    else:
         actuator.turn_off()
 
-    # Persist the updated state to the database
     repo.update_actuator_state(actuator)
 
-    # Return the updated actuator information
     return ActuatorModel(
         id=str(uuid),
         kind=actuator.device_type,
         supplier=actuator.supplier,
         product=actuator.model_name,
-        state_description="active" if actuator.is_active() else "inactive"
+        state=actuator.is_active()
     )
 
 if __name__ == '__main__':

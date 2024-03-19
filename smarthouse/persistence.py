@@ -120,37 +120,44 @@ class SmartHouseRepository:
             return None
         
     # Oppdaterer tilstanden for en gitt aktuator i db.
-    def update_actuator_state(self, actuator):
-        """
-        Saves the state of the given actuator in the database. 
-        """
-        state_value = 'True' if actuator.is_active() else 'False' # Konverterer aktuator-tilstanden til en streng
-        cursor = self.conn.cursor()
-        # Oppdaterer eller setter inn aktuator-tilstanden i databasen
-        cursor.execute("""
-            INSERT INTO actuator_states (device, state, ts) VALUES (?, ?, ?)
-            ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
-        """, (actuator.id, state_value))
-        self.conn.commit() # Lagrer endringene
-        
+    
+    def update_actuator_state(self, actuator: Actuator):
+        state_value = actuator.is_active()  # This will be True or False
+        with self.get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO actuator_states (device, state) VALUES (?, ?)
+                ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
+                RETURNING ts  -- This will return the new timestamp
+            """, (actuator.id, state_value))
+            actuator.ts = cursor.fetchone()[0]  # Set the timestamp to the actuator object
+            conn.commit()
+            
     def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:
         with self.get_conn() as conn:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT d.id, d.kind, d.supplier, d.product, a.state
                 FROM devices d
                 INNER JOIN actuator_states a ON d.id = a.device
                 WHERE d.id = ? AND d.category = 'actuator'
-            """, (actuator_id,))  # Ensure actuator_id is a tuple by adding a comma
+            """, (actuator_id,))
             row = cursor.fetchone()
             if row:
                 actuator = Actuator(
-                    id=row[0],
-                    model_name=row[3],
-                    supplier=row[2],
-                    device_type=row[1]
+                    id=row['id'],
+                    model_name=row['product'],
+                    supplier=row['supplier'],
+                    device_type=row['kind']
                 )
-                actuator.state = True if row[4] == 'True' else False
+                # Attempt to convert the state to a float
+                try:
+                    actuator.state = float(row['state'])
+                except ValueError:
+                    # If it fails, it could be a boolean
+                    actuator.state = row['state'].lower() == 'true'
+                
                 return actuator
             return None
         
