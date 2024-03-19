@@ -39,11 +39,7 @@ def root():
 def hello(name: str = "world"):
     return {"hello": name}
 
-
 # Starting point ...
-@app.get("/hello")
-def hello(name: str = "world") -> dict[str, str]:
-    return {"hello": name}
 
 @app.get("/smarthouse")
 def get_smarthouse_info() -> dict[str, int | float]:
@@ -284,45 +280,30 @@ def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(
         state_description=state_description  # Adding the descriptive state
    )
 
-@app.put("/smarthouse/device/{uuid}", response_model=ActuatorModel)
-async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends()):
+@app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
+async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest):
     # Fetch the actuator by UUID using the existing shared connection (for now)
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
 
-    # Manually handle connection for updating actuator state to avoid threading issues
-    with repo.get_conn() as new_conn:
-        # Manually create a cursor for this operation
-        cursor = new_conn.cursor()
+    # Update the actuator's state based on the request
+    if state_update.state is True:
+        actuator.turn_on()
+    elif state_update.state is False:
+        actuator.turn_off()
 
-        # Perform the update operation with a freshly created connection and cursor
-        state_value = 'True' if state_update.state else 'False'  # Assuming state_update.state is a boolean
-        cursor.execute("""
-            INSERT INTO actuator_states (device, state) VALUES (?, ?)
-            ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
-        """, (str(uuid), state_value))
-        new_conn.commit()  # Commit changes with the new connection
+    # Persist the updated state to the database
+    repo.update_actuator_state(actuator)
 
-    # Since the update operation is done, you might want to update the in-memory object as well
-    # This step is crucial to ensure the response reflects the new state
-    if isinstance(state_update.state, bool):
-        if state_update.state:
-            actuator.turn_on()
-        else:
-            actuator.turn_off()
-    # If actuator supports numeric states, handle it accordingly here
-
-    # Prepare the response
-    state_description = "active" if actuator.is_active() else "inactive"
-    return {
-        "id": str(uuid),
-        "kind": actuator.device_type,
-        "supplier": actuator.supplier,
-        "product": actuator.model_name,
-        "state": state_update.state,
-        "state_description": state_description
-    }
+    # Return the updated actuator information
+    return ActuatorModel(
+        id=str(uuid),
+        kind=actuator.device_type,
+        supplier=actuator.supplier,
+        product=actuator.model_name,
+        state_description="active" if actuator.is_active() else "inactive"
+    )
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

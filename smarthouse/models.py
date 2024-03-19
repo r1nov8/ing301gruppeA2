@@ -47,7 +47,7 @@ class MeasurementModel(BaseModel):
         return v
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         json_encoders = {
             datetime: lambda v: v.strftime('%Y-%m-%d %H:%M:%S') if v.tzinfo else v.isoformat()
         }

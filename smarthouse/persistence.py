@@ -11,7 +11,7 @@ class SmartHouseRepository:
     # Initialiserer klassen med filbanen til SQlite-DB.
     def __init__(self, file: str) -> None:
         self.file = file # Lagrer filbanen
-        self.conn = sqlite3.connect(file) # Oppretter en forbindelse til db.
+        self.conn = sqlite3.connect(file, check_same_thread=False) # Oppretter en forbindelse til db.
         self.setup_database() # Kaller en metode for oppretting av tabell i db
 
     def get_conn(self):
@@ -128,7 +128,7 @@ class SmartHouseRepository:
         cursor = self.conn.cursor()
         # Oppdaterer eller setter inn aktuator-tilstanden i databasen
         cursor.execute("""
-            INSERT INTO actuator_states (device, state) VALUES (?, ?)
+            INSERT INTO actuator_states (device, state, ts) VALUES (?, ?, ?)
             ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
         """, (actuator.id, state_value))
         self.conn.commit() # Lagrer endringene
