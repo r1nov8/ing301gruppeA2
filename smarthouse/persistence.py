@@ -122,15 +122,16 @@ class SmartHouseRepository:
     # Oppdaterer tilstanden for en gitt aktuator i db.
     
     def update_actuator_state(self, actuator: Actuator):
-        state_value = actuator.is_active()  # This will be True or False
+    # Prepare the state value based on the type.
+        state_value = '1' if actuator.state is True else '0' if actuator.state is False else actuator.state
+        
         with self.get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO actuator_states (device, state) VALUES (?, ?)
-                ON CONFLICT(device) DO UPDATE SET state=excluded.state, ts=CURRENT_TIMESTAMP
-                RETURNING ts  -- This will return the new timestamp
-            """, (actuator.id, state_value))
-            actuator.ts = cursor.fetchone()[0]  # Set the timestamp to the actuator object
+                UPDATE actuator_states
+                SET state = ?, ts = CURRENT_TIMESTAMP
+                WHERE device = ?
+            """, (state_value, actuator.id))
             conn.commit()
             
     def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:

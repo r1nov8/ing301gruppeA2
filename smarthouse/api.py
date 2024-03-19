@@ -279,18 +279,15 @@ def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(
         state=actuator.state,  # Preserving the original state data
         #state_description=state_description  # Adding the descriptive state
    )
-@app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
 
+@app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
 async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends(setup_database)):
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
-
-    if state_update.state == True:
-        actuator.turn_on()
-    else:
-        actuator.turn_off()
-
+    
+    # Directly set the actuator's state to the new value from the request.
+    actuator.state = state_update.state
     repo.update_actuator_state(actuator)
 
     return ActuatorModel(
@@ -298,8 +295,8 @@ async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateReq
         kind=actuator.device_type,
         supplier=actuator.supplier,
         product=actuator.model_name,
-        state=actuator.is_active()
-    )
+        state=actuator.state # Return the updated state
+        )
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)
