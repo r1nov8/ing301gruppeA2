@@ -74,7 +74,7 @@ class SmartHouseRepository:
         cursor = self.conn.cursor()
 
         # Henter informasjon om alle rom og registrerer dem i SmartHouse-objektet
-        cursor.execute("SELECT id, floor, area, name FROM rooms")
+        cursor.execute("SELECT DISTINCT id, floor, area, name FROM rooms")
         for room_id, floor_level, area, name in cursor.fetchall():
             # Nå vil denne linjen sjekke for duplisering internt
             floor = smarthouse.register_floor(floor_level)

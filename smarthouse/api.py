@@ -73,20 +73,20 @@ def get_all_floors():
         ) for floor in floors_data
     ]
 
-@app.get("/smarthouse/floor/{fid}", response_model=FloorModel)
+@app.get("/smarthouse/floor/{fid}")
 def get_floor_info(fid: int):
     floor = next((fl for fl in smarthouse.get_floors() if fl.level == fid), None)
     if floor is None:
         raise HTTPException(status_code=404, detail=f"Floor with id {fid} not found")
-    return FloorModel(
-        level=floor.level,
-        rooms=[
-            RoomModel(
-                room_size=room.room_size, 
-                room_name=room.room_name
-            ) for room in floor.rooms
-        ]
-    )
+    
+    total_area = sum(room.room_size for room in floor.rooms)
+    room_count = len(floor.rooms)
+    
+    return {
+        "level": floor.level,
+        "total_area": total_area,
+        "room_count": room_count
+    }
 
 @app.get("/smarthouse/floor/{fid}/room", response_model=List[RoomModel])
 def get_rooms_on_floor(fid: int):

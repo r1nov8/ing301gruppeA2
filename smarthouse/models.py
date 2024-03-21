@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 from pydantic import BaseModel, Field, validator
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 class RoomModel(BaseModel):
