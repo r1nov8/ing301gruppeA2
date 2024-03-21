@@ -49,9 +49,6 @@ class Sensor(Device):
     def last_measurement(self) -> Measurement:
         return Measurement(datetime.now().isoformat(), random() * 10, self.unit)
 
-        
-
-
 class Actuator(Device):
     def __init__(self, id: str, model_name: str, supplier: str, device_type: str):
         super().__init__(id, model_name, supplier, device_type)

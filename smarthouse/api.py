@@ -1,11 +1,11 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, Path, Response
+from fastapi import FastAPI, HTTPException, Path
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from smarthouse.persistence import SmartHouseRepository
 from pathlib import Path
-from typing import List, Union, Optional
-from smarthouse.models import FloorModel, RoomModel, DeviceModel, SensorModel, ActuatorModel, MeasurementModel, ActuatorStateUpdateRequest
+from typing import List, Union, Optional, Dict
+from smarthouse.models import DeviceModel, SensorModel, ActuatorModel, MeasurementModel, ActuatorStateUpdateRequest
 from smarthouse.domain import Sensor, Actuator
 from uuid import UUID
 from datetime import datetime
@@ -58,20 +58,26 @@ def get_smarthouse_info() -> dict[str, int | float]:
 # https://github.com/selabhvl/ing301-projectpartC-startcode?tab=readme-ov-file#oppgavebeskrivelse
 # here ...
 
-@app.get("/smarthouse/floor", response_model=List[FloorModel])
-def get_all_floors():
-    floors_data = smarthouse.get_floors()
-    return [
-        FloorModel(
-            level=floor.level,
-            rooms=[
-                RoomModel(
-                    room_size=room.room_size, 
-                    room_name=room.room_name
-                ) for room in floor.rooms
-            ]
-        ) for floor in floors_data
-    ]
+
+@app.get("/smarthouse/floor")
+def get_all_floors_info() -> List[Dict]:
+    """
+    This endpoint returns a list of dictionaries, each providing information about a floor.
+    """
+    floors_info = []
+    for floor in smarthouse.get_floors():
+        floor_rooms = floor.rooms
+        floor_area = sum(room.room_size for room in floor_rooms)
+        floor_devices = sum(len(room.devices) for room in floor_rooms)
+        
+        floors_info.append({
+            "floor_level": floor.level,
+            "no_rooms": len(floor_rooms),
+            "total_area": floor_area,
+            "registered_devices": floor_devices
+        })
+
+    return floors_info
 
 @app.get("/smarthouse/floor/{fid}")
 def get_floor_info(fid: int):
@@ -88,29 +94,60 @@ def get_floor_info(fid: int):
         "room_count": room_count
     }
 
-@app.get("/smarthouse/floor/{fid}/room", response_model=List[RoomModel])
+@app.get("/smarthouse/floor/{fid}/room")
 def get_rooms_on_floor(fid: int):
     floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
     if not floor:
         raise HTTPException(status_code=404, detail="Floor not found")
-    
-    rooms_response = [RoomModel(room_size=room.room_size, room_name=room.room_name) for room in floor.rooms]
-    return rooms_response
 
-@app.get("/smarthouse/floor/{fid}/room/{rid}", response_model=RoomModel)
-def get_specific_room(fid: int, rid: str):
+    rooms_info = [{
+        "room_name": room.room_name,
+        "room_size": room.room_size,
+        "devices": [{
+            "device_type": device.device_type,
+            # Ensure 'product' or any other required fields are included here
+        } for device in room.devices]
+    } for room in floor.rooms]
+
+    return rooms_info
+
+@app.get("/smarthouse/floor/{fid}/room/{rid}")
+def get_room_info(fid: int, rid: str):
+    """
+    Fetches information for a specified room on a specified floor, 
+    including a summary of each device in that room.
+    """
+    # Find the specified floor
     floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
-    if floor is None:
-        raise HTTPException(status_code=404, detail="Floor not found")
-    
-    room = next((r for r in floor.rooms if r.room_name == rid), None)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found on this floor")
+    if not floor:
+        raise HTTPException(status_code=404, detail=f"Floor {fid} not found")
 
-    return RoomModel(room_size=room.room_size, room_name=room.room_name)
+    # Find the specified room by name on the floor
+    room = next((r for r in floor.rooms if r.room_name == rid), None)
+    if not room:
+        raise HTTPException(status_code=404, detail=f"Room {rid} not found on floor {fid}")
+
+    # Prepare a summary of each device in the room
+    devices_summary = [{
+        "id": device.id,
+        "model_name": device.model_name,
+        "device_type": device.device_type
+    } for device in room.devices]
+
+    # Construct and return the room information including device summaries
+    room_info = {
+        "room_name": room.room_name,
+        "room_size": room.room_size,
+        "devices": devices_summary
+    }
+
+    return room_info
 
 @app.get("/smarthouse/device", response_model=List[DeviceModel])
 def get_all_devices():
+    '''
+    Provides information on all available devices
+    '''
     devices = smarthouse.get_devices()  # Assuming this retrieves all devices correctly
     response = []
     for device in devices:
@@ -195,7 +232,7 @@ def get_current_sensor_measurement(uuid: str):
     )
 
 @app.post("/smarthouse/sensor/{uuid}/current", response_model=MeasurementModel)
-def add_measurement_for_sensor(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+def add_measurement_for_sensor(uuid: UUID):
     # Get the sensor by its UUID
     sensor = repo.get_sensor_by_id(str(uuid))
     
@@ -241,7 +278,7 @@ def generate_random_value_for_sensor_type(device_type: str) -> tuple[float, str]
     return value, correct_unit
 
 @app.get("/smarthouse/sensor/{uuid}/values", response_model=List[MeasurementModel])
-def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None, repo: SmartHouseRepository = Depends(setup_database)):
+def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None):
     try:
         sensor_measurements = repo.get_latest_sensor_measurements(sensor_id=str(uuid), limit=limit)
         
@@ -250,7 +287,7 @@ def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None, repo: Smar
         raise HTTPException(status_code=500, detail=f"Failed to fetch sensor measurements: {str(e)}")
 
 @app.delete("/smarthouse/sensor/{uuid}/oldest")
-def delete_oldest_measurement(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+def delete_oldest_measurement(uuid: UUID):
     try:
         result = repo.delete_oldest_measurement_for_sensor(sensor_id=str(uuid))
         if result:
@@ -261,7 +298,7 @@ def delete_oldest_measurement(uuid: UUID, repo: SmartHouseRepository = Depends(s
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 @app.get("/smarthouse/actuator/{uuid}/current", response_model=ActuatorModel)
-def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
+def get_current_actuator_state(uuid: UUID):
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
@@ -274,7 +311,7 @@ def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(
     )
 
 @app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
-async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends(setup_database)):
+async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest):
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")

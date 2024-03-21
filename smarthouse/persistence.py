@@ -12,37 +12,6 @@ class SmartHouseRepository:
     def __init__(self, file: str) -> None:
         self.file = file # Lagrer filbanen
         self.conn = sqlite3.connect(file, check_same_thread=False) # Oppretter en forbindelse til db.
-        self.setup_database() # Kaller en metode for oppretting av tabell i db
-
-    def get_conn(self):
-        return sqlite3.connect(self.file)
-    
-    # Setter opp db ved å oprette tabeller om den ikke eksisterer.
-    def setup_database(self):
-        cursor = self.conn.cursor() 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS devices (
-                id TEXT PRIMARY KEY,
-                room TEXT,
-                kind TEXT,
-                category TEXT,
-                supplier TEXT,
-                product TEXT,
-                FOREIGN KEY(room) REFERENCES rooms(id)
-            );
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS actuator_states (
-                device TEXT NOT NULL,
-                state TEXT NOT NULL,
-                ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY(device),
-                FOREIGN KEY(device) REFERENCES devices(id)
-            );
-        """)
-        # Include any other necessary table creation statements here
-        self.conn.commit()
-
 
     # Lukker db-tilkoblingen når objektet blir slettet.
     def __del__(self):
@@ -110,115 +79,99 @@ class SmartHouseRepository:
         Returns None if the given object has no sensor readings.
         """
         sensor_id = sensor if isinstance(sensor, str) else sensor.id
-        # Utfører en spørring for å finne den siste målingen for den gitte sensoren
-        with self.get_conn() as conn:    
-            cursor = conn.cursor()
-            cursor.execute("SELECT ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT 1", (sensor_id,))
-            row = cursor.fetchone()
-            if row:
-                return Measurement(row[0], row[1], row[2]) 
-            return None
+        # Utfører en spørring for å finne den siste målingen for den gitte sensoren   
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT 1", (sensor_id,))
+        row = cursor.fetchone()
+        if row:
+            return Measurement(row[0], row[1], row[2]) 
+        return None
         
     # Oppdaterer tilstanden for en gitt aktuator i db.
     
     def update_actuator_state(self, actuator: Actuator):
         state_value = '1' if actuator.state is True else '0' if actuator.state is False else str(actuator.state)
-        
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO states (device, state) VALUES (?, ?)
-                ON CONFLICT(device) DO UPDATE SET state = excluded.state;
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO states (device, state) VALUES (?, ?)
+            ON CONFLICT(device) DO UPDATE SET state = excluded.state;
             """, (actuator.id, state_value))
-            conn.commit()
+        self.conn.commit()
             
     def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:
-        with self.get_conn() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT d.id, d.kind, d.supplier, d.product, a.state
-                FROM devices d
-                INNER JOIN states a ON d.id = a.device
-                WHERE d.id = ? AND d.category = 'actuator'
-            """, (actuator_id,))
-            row = cursor.fetchone()
-            if row:
-                actuator = Actuator(
-                    id=row['id'],
-                    model_name=row['product'],
-                    supplier=row['supplier'],
-                    device_type=row['kind']
-                )
-                # Check if the state is not None before attempting conversion
-                if row['state'] is not None:
-                    try:
-                        # Attempt to convert state to float for numeric values
-                        actuator.state = float(row['state'])
-                    except ValueError:
-                        # For non-numeric values, check for boolean represented as string
-                        if row['state'].lower() in ['true', 'false']:
-                            actuator.state = row['state'].lower() == 'true'
-                        else:
-                            # If state is neither numeric nor boolean, log an error or use a default value
-                            actuator.state = False # or any default value you see fit
-                else:
-                    # Handle None state, e.g., by setting a default state
-                    actuator.state = False # Default to False or any appropriate value
-                return actuator
-            return None
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT d.id, d.kind, d.supplier, d.product, a.state
+            FROM devices d
+            INNER JOIN states a ON d.id = a.device
+            WHERE d.id = ? AND d.category = 'actuator'
+        """, (actuator_id,))
+        row = cursor.fetchone()
+        if row:
+            actuator = Actuator(
+                id=row['id'],
+                model_name=row['product'],
+                supplier=row['supplier'],
+                device_type=row['kind']
+            )
+            if row['state'] is not None:
+                try:
+                    actuator.state = float(row['state'])
+                except ValueError:
+                    actuator.state = row['state'].lower() == 'true'
+            else:
+                actuator.state = False
+            return actuator
+        return None
         
 
     def get_sensor_by_id(self, sensor_id: str) -> Optional[Sensor]:
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT kind FROM devices WHERE id = ?", (sensor_id,))
-            kind = cursor.fetchone()
-            if kind:
-                # Assuming that 'kind' corresponds to device_type in Sensor class
-                return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
-            return None
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT kind FROM devices WHERE id = ?", (sensor_id,))
+        kind = cursor.fetchone()
+        if kind:
+            # Assuming that 'kind' corresponds to device_type in Sensor class
+            return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
+        return None
         
     def add_measurement(self, sensor_id: str, ts: str, value: float, unit: str):
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, ?)
-            """, (sensor_id, ts, value, unit))
-            conn.commit()
-            cursor.close()
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO measurements (device, ts, value, unit) VALUES (?, ?, ?, ?)
+        """, (sensor_id, ts, value, unit))
+        self.conn.commit()
+        cursor.close()
     
     def get_latest_sensor_measurements(self, sensor_id: str, limit: Optional[int] = None) -> list:
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            if limit is not None:
-                cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT ?", (sensor_id, limit))
-            else:
-                cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC", (sensor_id,))
-            measurements = cursor.fetchall()
+        cursor = self.conn.cursor()
+        if limit is not None:
+            cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC LIMIT ?", (sensor_id, limit))
+        else:
+            cursor.execute("SELECT device, ts, value, unit FROM measurements WHERE device = ? ORDER BY ts DESC", (sensor_id,))
+        measurements = cursor.fetchall()
         # Convert the raw data into Measurement instances or a suitable format for the endpoint
         return [Measurement(timestamp=m[1], value=m[2], unit=m[3]) for m in measurements]
     
     def delete_oldest_measurement_for_sensor(self, sensor_id: str) -> bool:
-        with self.get_conn() as conn:
-            cursor = conn.cursor()
-            # Først, finn ID-en til den eldste målingen for sensoren
+        cursor = self.conn.cursor()
+        # Først, finn ID-en til den eldste målingen for sensoren
+        cursor.execute("""
+            SELECT ts FROM measurements
+            WHERE device = ?
+            ORDER BY ts ASC
+            LIMIT 1
+        """, (sensor_id,))
+        oldest_measurement_ts = cursor.fetchone()
+        if oldest_measurement_ts:
+            # Deretter, slett den eldste målingen
             cursor.execute("""
-                SELECT ts FROM measurements
-                WHERE device = ?
-                ORDER BY ts ASC
-                LIMIT 1
-            """, (sensor_id,))
-            oldest_measurement_ts = cursor.fetchone()
-            if oldest_measurement_ts:
-                # Deretter, slett den eldste målingen
-                cursor.execute("""
-                    DELETE FROM measurements
-                    WHERE device = ? AND ts = ?
-                """, (sensor_id, oldest_measurement_ts[0]))
-                conn.commit()
-                return True
-            return False
+                DELETE FROM measurements
+                WHERE device = ? AND ts = ?
+            """, (sensor_id, oldest_measurement_ts[0]))
+            self.conn.commit()
+            return True
+        return False
                            
     # statistics
     

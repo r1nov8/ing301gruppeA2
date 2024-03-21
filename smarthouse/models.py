@@ -3,14 +3,6 @@ from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from uuid import UUID
 
-class RoomModel(BaseModel):
-    room_size: float
-    room_name: str
-
-class FloorModel(BaseModel):
-    level: int
-    rooms: List[RoomModel]
-
 class DeviceModel(BaseModel):
     id: str
     kind: str = Field(..., description="The type of the device, such as sensor or actuator")
@@ -22,7 +14,6 @@ class SensorModel(DeviceModel):
 
 class ActuatorModel(DeviceModel):
     state: Union[float, bool] = Field(..., description="The current state of the actuator, could be a boolean or a float value")
-    
 
 class ActuatorStateUpdateRequest(BaseModel):
     state: Union[bool, float]
