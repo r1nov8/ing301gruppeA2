@@ -118,7 +118,7 @@ def get_all_devices():
         if isinstance(device, Sensor):
             response.append(SensorModel(
                 id=device.id,
-                kind=device.device_type,  # Assuming direct access to attribute
+                kind=device.device_type,
                 supplier=device.supplier,
                 product=device.model_name,
                 unit=device.unit
@@ -262,41 +262,31 @@ def delete_oldest_measurement(uuid: UUID, repo: SmartHouseRepository = Depends(s
 
 @app.get("/smarthouse/actuator/{uuid}/current", response_model=ActuatorModel)
 def get_current_actuator_state(uuid: UUID, repo: SmartHouseRepository = Depends(setup_database)):
-    # Use the repository to get the current state of the actuator
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
-
-    # Translate the boolean state to a user-friendly description
-    #state_description = "active" if actuator.is_active() else "inactive"
-
-    # Return the actuator state as per the ActuatorModel response model
     return ActuatorModel(
         id=str(uuid),
         kind=actuator.device_type,
         supplier=actuator.supplier,
         product=actuator.model_name,
-        state=actuator.state,  # Preserving the original state data
-        #state_description=state_description  # Adding the descriptive state
-   )
+        state=actuator.state
+    )
 
 @app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
 async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest, repo: SmartHouseRepository = Depends(setup_database)):
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
-    
-    # Directly set the actuator's state to the new value from the request.
     actuator.state = state_update.state
     repo.update_actuator_state(actuator)
-
     return ActuatorModel(
         id=str(uuid),
         kind=actuator.device_type,
         supplier=actuator.supplier,
         product=actuator.model_name,
-        state=actuator.state # Return the updated state
-        )
+        state=actuator.state
+    )
 
 if __name__ == '__main__':
     uvicorn.run(app, host="127.0.0.1", port=8000)

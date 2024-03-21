@@ -122,16 +122,14 @@ class SmartHouseRepository:
     # Oppdaterer tilstanden for en gitt aktuator i db.
     
     def update_actuator_state(self, actuator: Actuator):
-    # Prepare the state value based on the type.
-        state_value = '1' if actuator.state is True else '0' if actuator.state is False else actuator.state
+        state_value = '1' if actuator.state is True else '0' if actuator.state is False else str(actuator.state)
         
         with self.get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                UPDATE actuator_states
-                SET state = ?, ts = CURRENT_TIMESTAMP
-                WHERE device = ?
-            """, (state_value, actuator.id))
+                INSERT INTO states (device, state) VALUES (?, ?)
+                ON CONFLICT(device) DO UPDATE SET state = excluded.state;
+            """, (actuator.id, state_value))
             conn.commit()
             
     def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:
@@ -141,7 +139,7 @@ class SmartHouseRepository:
             cursor.execute("""
                 SELECT d.id, d.kind, d.supplier, d.product, a.state
                 FROM devices d
-                INNER JOIN actuator_states a ON d.id = a.device
+                INNER JOIN states a ON d.id = a.device
                 WHERE d.id = ? AND d.category = 'actuator'
             """, (actuator_id,))
             row = cursor.fetchone()
@@ -152,13 +150,21 @@ class SmartHouseRepository:
                     supplier=row['supplier'],
                     device_type=row['kind']
                 )
-                # Attempt to convert the state to a float
-                try:
-                    actuator.state = float(row['state'])
-                except ValueError:
-                    # If it fails, it could be a boolean
-                    actuator.state = row['state'].lower() == 'true'
-                
+                # Check if the state is not None before attempting conversion
+                if row['state'] is not None:
+                    try:
+                        # Attempt to convert state to float for numeric values
+                        actuator.state = float(row['state'])
+                    except ValueError:
+                        # For non-numeric values, check for boolean represented as string
+                        if row['state'].lower() in ['true', 'false']:
+                            actuator.state = row['state'].lower() == 'true'
+                        else:
+                            # If state is neither numeric nor boolean, log an error or use a default value
+                            actuator.state = False # or any default value you see fit
+                else:
+                    # Handle None state, e.g., by setting a default state
+                    actuator.state = False # Default to False or any appropriate value
                 return actuator
             return None
         

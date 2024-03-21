@@ -22,7 +22,7 @@ class SensorModel(DeviceModel):
 
 class ActuatorModel(DeviceModel):
     state: Union[float, bool] = Field(..., description="The current state of the actuator, could be a boolean or a float value")
-    timestamp: Optional[datetime] = Field(default_factory=datetime.now, description="The timestamp of the measurement")
+    
 
 class ActuatorStateUpdateRequest(BaseModel):
     state: Union[bool, float]
