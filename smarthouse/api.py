@@ -11,7 +11,6 @@ from uuid import UUID
 from datetime import datetime
 from random import uniform
 
-
 def setup_database():
     project_dir = Path(__file__).parent.parent
     db_file = project_dir / "data" / "db.sql" # you have to adjust this if you have changed the file name of the database
@@ -24,8 +23,7 @@ repo = setup_database()
 
 smarthouse = repo.load_smarthouse_deep()
 
-# http://localhost:8000/welcome/index.html
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/Users/kingston/ing301public/ing301gruppeA2/static", StaticFiles(directory="static"), name="static")
 
 
 # http://localhost:8000/ -> welcome page
@@ -81,6 +79,9 @@ def get_all_floors_info() -> List[Dict]:
 
 @app.get("/smarthouse/floor/{fid}")
 def get_floor_info(fid: int):
+    """
+    This endpoint returns information about a specific floor
+    """
     floor = next((fl for fl in smarthouse.get_floors() if fl.level == fid), None)
     if floor is None:
         raise HTTPException(status_code=404, detail=f"Floor with id {fid} not found")
@@ -96,6 +97,9 @@ def get_floor_info(fid: int):
 
 @app.get("/smarthouse/floor/{fid}/room")
 def get_rooms_on_floor(fid: int):
+    """
+    This endpoint returns information about the rooms on a specific floor
+    """
     floor = next((f for f in smarthouse.get_floors() if f.level == fid), None)
     if not floor:
         raise HTTPException(status_code=404, detail="Floor not found")
@@ -105,7 +109,6 @@ def get_rooms_on_floor(fid: int):
         "room_size": room.room_size,
         "devices": [{
             "device_type": device.device_type,
-            # Ensure 'product' or any other required fields are included here
         } for device in room.devices]
     } for room in floor.rooms]
 
@@ -188,7 +191,9 @@ SENSOR_UNITS = {
 
 @app.get("/smarthouse/device/{uuid}", response_model=Union[SensorModel, ActuatorModel])
 def get_device_by_uuid(uuid: str):
-
+    """
+    Find a device by ID
+    """
     device = smarthouse.get_device_by_id(uuid)  # Retrieve the device by its ID
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -233,7 +238,9 @@ def get_current_sensor_measurement(uuid: str):
 
 @app.post("/smarthouse/sensor/{uuid}/current", response_model=MeasurementModel)
 def add_measurement_for_sensor(uuid: UUID):
-    # Get the sensor by its UUID
+    """
+    Updating sensor measurements
+    """
     sensor = repo.get_sensor_by_id(str(uuid))
     
     if not sensor:
@@ -258,6 +265,7 @@ def add_measurement_for_sensor(uuid: UUID):
         raise HTTPException(status_code=500, detail=str(e))
 
 def generate_random_value_for_sensor_type(device_type: str) -> tuple[float, str]:
+    # creates a randomized reading, laget bare for å teste..
     if device_type == "Humidity Sensor":
         return uniform(0, 100), "%"
     elif device_type == "CO2 sensor":
@@ -279,6 +287,9 @@ def generate_random_value_for_sensor_type(device_type: str) -> tuple[float, str]
 
 @app.get("/smarthouse/sensor/{uuid}/values", response_model=List[MeasurementModel])
 def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None):
+    """
+    Returns the desired amount of measurement reading
+    """
     try:
         sensor_measurements = repo.get_latest_sensor_measurements(sensor_id=str(uuid), limit=limit)
         
@@ -288,6 +299,9 @@ def get_latest_sensor_values(uuid: UUID, limit: Optional[int] = None):
 
 @app.delete("/smarthouse/sensor/{uuid}/oldest")
 def delete_oldest_measurement(uuid: UUID):
+    """
+    Return the oldest measurement reading
+    """
     try:
         result = repo.delete_oldest_measurement_for_sensor(sensor_id=str(uuid))
         if result:
@@ -299,6 +313,9 @@ def delete_oldest_measurement(uuid: UUID):
 
 @app.get("/smarthouse/actuator/{uuid}/current", response_model=ActuatorModel)
 def get_current_actuator_state(uuid: UUID):
+    """
+    Returns the current actuator state
+    """
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
@@ -309,9 +326,13 @@ def get_current_actuator_state(uuid: UUID):
         product=actuator.model_name,
         state=actuator.state
     )
-
 @app.put("/smarthouse/actuator/{uuid}", response_model=ActuatorModel)
 async def update_actuator_state(uuid: UUID, state_update: ActuatorStateUpdateRequest):
+    """
+    Option to update the actuator state:
+    False = 0 = Off
+    True = 1 = On
+    """
     actuator = repo.get_actuator_state_by_id(str(uuid))
     if not actuator:
         raise HTTPException(status_code=404, detail="Actuator not found")
