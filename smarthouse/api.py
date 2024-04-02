@@ -23,7 +23,7 @@ repo = setup_database()
 
 smarthouse = repo.load_smarthouse_deep()
 
-app.mount("/Users/kingston/ing301public/ing301gruppeA2/static", StaticFiles(directory="static"), name="static")
+app.mount("/Users/kingston/ing301public/ing301gruppeA2", StaticFiles(directory=None), name="static")
 
 
 # http://localhost:8000/ -> welcome page
