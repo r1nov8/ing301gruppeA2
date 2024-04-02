@@ -12,4 +12,7 @@ get {
 
 assert {
   res.status: eq 200
+  res.body.level: eq 1
+  res.body.total_area: eq 86.55
+  res.body.room_count: eq 5
 }

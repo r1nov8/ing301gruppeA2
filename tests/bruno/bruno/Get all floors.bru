@@ -12,4 +12,12 @@ get {
 
 assert {
   res.status: eq 200
+  res.body[0].floor_level: eq 1
+  res.body[1].floor_level: eq 2
+  res.body[0].no_rooms: eq 5
+  res.body[1].no_rooms: eq 7
+  res.body[0].total_area: eq 86.55
+  res.body[1].total_area: eq 70
+  res.body[0].registered_devices: eq 8
+  res.body[1].registered_devices: eq 6
 }
