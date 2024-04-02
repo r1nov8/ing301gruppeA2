@@ -1,0 +1,15 @@
+LIGHTBULB_DID = "6b1c5f6b-37f6-4e3d-9145-1cfbe2f1fc28"
+TEMPERATURE_SENSOR_DID = "4d8b1d62-7921-4917-9b70-bbd31f6e2e8e"
+
+# base URL for the cloud service - can be used to avoid dependency on deployment
+BASE_URL = "http://localhost:8000/smarthouse/"
+
+LIGHTBULB_SIMULATOR_SLEEP_TIME = 1
+LIGHTBULB_CLIENT_SLEEP_TIME = 4
+
+TEMPERATURE_SENSOR_SIMULATOR_SLEEP_TIME = 2
+TEMPERATURE_SENSOR_CLIENT_SLEEP_TIME = 4
+
+TEMP_RANGE = 40
+
+

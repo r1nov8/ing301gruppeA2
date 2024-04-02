@@ -40,7 +40,7 @@ def hello(name: str = "world"):
 # Starting point ...
 
 @app.get("/smarthouse")
-def get_smarthouse_info() -> dict[str, int | float]:
+def get_smarthouse_info() -> dict[str, Union[int, float]]:
     """
     This endpoint returns an object that provides information
     about the general structure of the smarthouse.

@@ -1,0 +1,29 @@
+meta {
+  name: Get all devices
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://127.0.0.1:8000/smarthouse/device
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body[0].room_name: eq "Office"
+  res.body[0].room_size: eq 11.75
+  res.body[1].room_name: eq "Bathroom 2"
+  res.body[1].room_size: eq 9.25
+  res.body[2].room_name: eq "Guest Room 2"
+  res.body[2].room_size: eq 8
+  res.body[3].room_name: eq "Gang"
+  res.body[3].room_size: eq 10
+  res.body[4].room_name: eq "Guest Room 3"
+  res.body[4].room_size: eq 10
+  res.body[5].room_name: eq "Dressing Room"
+  res.body[5].room_size: eq 4
+  res.body[6].room_name: eq "Master Bedroom"
+  res.body[6].room_size: eq 17
+}
