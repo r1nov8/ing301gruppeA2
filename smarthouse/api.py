@@ -13,7 +13,7 @@ from random import uniform
 
 def setup_database():
     project_dir = Path(__file__).parent.parent
-    db_file = project_dir / "data" / "db.sql" # you have to adjust this if you have changed the file name of the database
+    db_file = project_dir / "data" / "db.sql"
     print(db_file.absolute())
     return SmartHouseRepository(db_file.absolute())
 
