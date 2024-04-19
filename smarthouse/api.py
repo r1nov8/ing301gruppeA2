@@ -254,7 +254,7 @@ def add_measurement_for_sensor(uuid: UUID):
         device=uuid,
         value=value,
         unit=unit,
-        timestamp=datetime.now()  # This will use the default_factory if not specified
+        ts=datetime.now()  # This will use the default_factory if not specified
     )
 
     # Add the new measurement to the database using the repository

@@ -13,6 +13,7 @@ class SmartHouseRepository:
         self.file = file # Lagrer filbanen
         self.conn = sqlite3.connect(file, check_same_thread=False) # Oppretter en forbindelse til db.
 
+
     # Lukker db-tilkoblingen når objektet blir slettet.
     def __del__(self):
         self.conn.close()
@@ -42,6 +43,8 @@ class SmartHouseRepository:
         smarthouse = SmartHouse()
         cursor = self.conn.cursor()
 
+
+
         # Henter informasjon om alle rom og registrerer dem i SmartHouse-objektet
         cursor.execute("SELECT DISTINCT id, floor, area, name FROM rooms")
         for room_id, floor_level, area, name in cursor.fetchall():
@@ -60,7 +63,7 @@ class SmartHouseRepository:
             smarthouse.register_device(room, device)
 
         # Henter og oppdaterer tilstanden for alle aktuatorer basert på lagrede tilstander i db.
-        cursor.execute("SELECT device, state FROM actuator_states")
+        cursor.execute("SELECT device, state FROM states")
         for device_id, state in cursor.fetchall():
             device = smarthouse.get_device_by_id(device_id)
             if device and isinstance(device, Actuator):
@@ -88,7 +91,7 @@ class SmartHouseRepository:
         return None
         
     # Oppdaterer tilstanden for en gitt aktuator i db.
-    
+
     def update_actuator_state(self, actuator: Actuator):
         state_value = '1' if actuator.state is True else '0' if actuator.state is False else str(actuator.state)
         cursor = self.conn.cursor()
@@ -97,14 +100,14 @@ class SmartHouseRepository:
             ON CONFLICT(device) DO UPDATE SET state = excluded.state;
             """, (actuator.id, state_value))
         self.conn.commit()
-            
+
     def get_actuator_state_by_id(self, actuator_id: str) -> Optional[Actuator]:
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT d.id, d.kind, d.supplier, d.product, a.state
             FROM devices d
-            INNER JOIN states a ON d.id = a.device
+            LEFT JOIN states a ON d.id = a.device
             WHERE d.id = ? AND d.category = 'actuator'
         """, (actuator_id,))
         row = cursor.fetchone()
@@ -134,7 +137,7 @@ class SmartHouseRepository:
             # Assuming that 'kind' corresponds to device_type in Sensor class
             return Sensor(id=sensor_id, model_name='', supplier='', device_type=kind[0], unit='')
         return None
-        
+
     def add_measurement(self, sensor_id: str, ts: str, value: float, unit: str):
         cursor = self.conn.cursor()
         cursor.execute("""
